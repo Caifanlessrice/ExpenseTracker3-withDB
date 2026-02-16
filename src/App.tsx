@@ -1,4 +1,5 @@
-import { useState, useMemo, CSSProperties, FC } from "react";
+import { useState, useMemo } from "react";
+import type { CSSProperties, FC } from "react";
 
 // Type Definitions
 type Category = "Food" | "Transport" | "Shopping" | "Bills" | "Skincare & Necessities" | "Others";
