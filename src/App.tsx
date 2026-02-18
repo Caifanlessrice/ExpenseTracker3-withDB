@@ -182,7 +182,7 @@ const ClickableBar: FC<ClickableBarProps> = ({ data, colorMap, onClickBar }) => 
           onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}>
           <div style={{width:90,fontSize:12,color:"#555",textAlign:"right",flexShrink:0,fontWeight:d.value>0?600:400}}>{d.label}</div>
           <div style={{flex:1,background:"#f0f0f0",borderRadius:6,overflow:"hidden",height:22}}>
-            <div style={{width:`${(d.value/max)*100}%`,background:colorMap?colorMap[d.label as Category]||"#45B7D1":"#45B7D1",height:"100%",borderRadius:6,transition:"width 0.4s",display:"flex",alignItems:"center",justifyContent:"flex-end",paddingRight:6}}>
+            <div style={{width:`${(d.value/max)*100}%`,background:colorMap?colorMap[d.label as Category]||'#45B7D1':'#45B7D1',height:"100%",borderRadius:6,transition:"width 0.4s",display:"flex",alignItems:"center",justifyContent:"flex-end",paddingRight:6}}>
               {d.value > 0 && <span style={{fontSize:10,color:"#fff",fontWeight:600,whiteSpace:"nowrap"}}>{fmt(d.value)}</span>}
             </div>
           </div>
@@ -197,19 +197,20 @@ interface ClickableDonutProps { data: ChartBar[]; onClickSlice: (label: Category
 const ClickableDonut: FC<ClickableDonutProps> = ({ data, onClickSlice }) => {
   const total = data.reduce((s, d) => s + d.value, 0);
   if (!total) return <p style={{color:"#aaa",textAlign:"center"}}>No data</p>;
-  let cum = 0; const sz = 160, r = 55, cx = 80, cy = 80;
-  const slices = data.map(d => {
-    const s = (cum/total)*2*Math.PI - Math.PI/2;
-    cum += d.value;
-    const e = (cum/total)*2*Math.PI - Math.PI/2;
-    const x1=cx+r*Math.cos(s), y1=cy+r*Math.sin(s), x2=cx+r*Math.cos(e), y2=cy+r*Math.sin(e);
-    return { ...d, path:`M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${e-s>Math.PI?1:0} 1 ${x2} ${y2} Z` };
-  });
+  const sz = 160, r = 55, cx = 80, cy = 80;
+  const slices = data.reduce<{ path: string; label: string; value: number }[]>((acc, d) => {
+    const cum = acc.reduce((sum, s) => sum + s.value, 0);
+    const s = (cum / total) * 2 * Math.PI - Math.PI / 2;
+    const e = ((cum + d.value) / total) * 2 * Math.PI - Math.PI / 2;
+    const x1 = cx + r * Math.cos(s), y1 = cy + r * Math.sin(s), x2 = cx + r * Math.cos(e), y2 = cy + r * Math.sin(e);
+    return [...acc, { ...d, path: `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${e - s > Math.PI ? 1 : 0} 1 ${x2} ${y2} Z` }];
+  }, []);
+
   return (
     <div style={{display:"flex",alignItems:"center",gap:20,flexWrap:"wrap",justifyContent:"center"}}>
       <svg width={sz} height={sz} viewBox={`0 0 ${sz} ${sz}`}>
         {slices.map(s => (
-          <path key={s.label} d={s.path} fill={CATEGORY_COLORS[s.label as Category]||"#ccc"} stroke="#fff" strokeWidth={2}
+          <path key={s.label} d={s.path} fill={CATEGORY_COLORS[s.label as Category]||'#ccc'} stroke="#fff" strokeWidth={2}
             style={{cursor:s.value>0?"pointer":"default",transition:"opacity 0.15s"}}
             onMouseEnter={e => { if (s.value > 0) e.currentTarget.style.opacity = "0.75"; }}
             onMouseLeave={e => { e.currentTarget.style.opacity = "1"; }}
@@ -225,7 +226,7 @@ const ClickableDonut: FC<ClickableDonutProps> = ({ data, onClickSlice }) => {
             style={{display:"flex",alignItems:"center",gap:8,fontSize:12,cursor:"pointer",borderRadius:7,padding:"4px 8px",transition:"background 0.15s"}}
             onMouseEnter={e => { e.currentTarget.style.background = "#f0f4ff"; }}
             onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}>
-            <div style={{width:12,height:12,borderRadius:3,background:CATEGORY_COLORS[d.label as Category]||"#ccc",flexShrink:0}}/>
+            <div style={{width:12,height:12,borderRadius:3,background:CATEGORY_COLORS[d.label as Category]||'#ccc',flexShrink:0}}/>
             <span style={{color:"#555"}}>{d.label}</span>
             <span style={{color:"#333",fontWeight:600,marginLeft:"auto",paddingLeft:12}}>{((d.value/total)*100).toFixed(1)}%</span>
             <span style={{color:"#aaa",fontSize:10}}>›</span>
@@ -247,7 +248,7 @@ export default function App() {
   const [form, setForm] = useState<FormState>(emptyForm);
   const [err, setErr] = useState("");
   const [ok, setOk] = useState(false);
-  const [fMonth, setFMonth] = useState("2025-02");
+  const [fMonth, setFMonth] = useState("All");
   const [fCat, setFCat] = useState<Category | "All">("All");
   const [editId, setEditId] = useState<number | null>(null);
   const [search, setSearch] = useState("");
@@ -315,12 +316,12 @@ export default function App() {
       return { label: new Date(Number(y), Number(mo)-1).toLocaleString("default", { month: "short", year: "2-digit" }), value: v };
     });
   }, [expenses]);
-  const topByCat = CATEGORIES.map(c => {
+  const topByCat = useMemo(() => CATEGORIES.map(c => {
     const items = filtered.filter(e => e.category === c);
     if (!items.length) return { label: c, value: 0, item: "—" };
     const top = items.reduce((a, b) => b.price > a.price ? b : a);
     return { label: c, value: top.price, item: top.item };
-  });
+  }), [filtered]);
   const drillItems = useMemo(() => {
     if (!drilldown) return [];
     const base = expenses.filter(e => fMonth === "All" || e.date.startsWith(fMonth));
@@ -360,7 +361,10 @@ export default function App() {
     const csv = [h, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\r\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement("a"); a.href = url; a.download = `expenses_${fMonth || "all"}.csv`; a.click();
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `expenses_${fMonth || "all"}.csv`;
+    a.click();
     URL.revokeObjectURL(url);
   };
 
@@ -496,9 +500,9 @@ export default function App() {
         {drilldown && (
           <div id="drilldown-panel">
             <DrilldownPanel
-              title={drilldown==="All" ? `All Transactions · ${monthLabel}` : `${CATEGORY_ICONS[drilldown as Category]||""} ${drilldown} · ${monthLabel}`}
-              color={drilldown==="All" ? "#4F46E5" : CATEGORY_COLORS[drilldown as Category]||"#4F46E5"}
-              icon={drilldown==="All" ? "📋" : CATEGORY_ICONS[drilldown as Category]||"📦"}
+              title={drilldown==="All" ? `All Transactions · ${monthLabel}` : `${CATEGORY_ICONS[drilldown as Category] || ''} ${drilldown} · ${monthLabel}`}
+              color={drilldown==="All" ? "#4F46E5" : CATEGORY_COLORS[drilldown as Category] || '#4F46E5'}
+              icon={drilldown==="All" ? "📋" : CATEGORY_ICONS[drilldown as Category] || '📦'}
               items={drillItems}
               onClose={() => setDrilldown(null)}
               onEdit={doEdit}
